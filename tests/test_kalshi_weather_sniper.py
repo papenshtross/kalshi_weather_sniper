@@ -2,7 +2,7 @@ from datetime import date
 
 from polybot.adapters.kalshi.client import dollars_to_probability, parse_market
 from polybot.live.kalshi_weather_sniper import best_candidate, filter_markets_for_date, kalshi_date_code
-from polybot.live.kalshi_weather_universe import KALSHI_HIGH_TEMP_SERIES, boundary_veto_reason
+from polybot.live.kalshi_weather_universe import ALL_KALSHI_HIGH_TEMP_SERIES, KALSHI_HIGH_TEMP_SERIES, boundary_veto_reason
 
 
 def test_dollars_to_probability_accepts_cents_and_dollars():
@@ -49,4 +49,7 @@ def test_date_filter_keeps_only_target_daily_markets():
 
 
 def test_copied_polymarket_risk_city_list_is_smaller_than_full_kalshi_config():
-    assert set(KALSHI_HIGH_TEMP_SERIES) == {"los-angeles", "atlanta", "houston"}
+    assert len(ALL_KALSHI_HIGH_TEMP_SERIES) == 20
+    assert len(KALSHI_HIGH_TEMP_SERIES) == 11
+    assert {"los-angeles", "atlanta", "houston", "austin", "chicago", "dallas", "denver", "miami", "nyc", "san-francisco", "seattle"}.issubset(KALSHI_HIGH_TEMP_SERIES)
+    assert ALL_KALSHI_HIGH_TEMP_SERIES["phoenix"]["inherited_polymarket_risk_city"] is False

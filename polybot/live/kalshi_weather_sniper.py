@@ -15,7 +15,6 @@ from loguru import logger
 from polybot.adapters.kalshi.client import KalshiHttpClient, KalshiMarket, parse_market
 from polybot.live.kalshi_weather_universe import (
     ALL_KALSHI_HIGH_TEMP_SERIES,
-    KALSHI_HIGH_TEMP_SERIES,
     boundary_veto_reason,
     nws_daily_high,
 )
@@ -111,7 +110,7 @@ class KalshiWeatherSniper:
 
     async def ensure_strategy_row(self, cfg: dict[str, Any]) -> None:
         import json as _json
-        market = "Kalshi daily high-temperature markets"
+        market = f"{len(cfg.get('series') or {})} Kalshi daily high-temperature city markets"
         async with self.writer._pool.acquire() as con:  # type: ignore[attr-defined]
             await con.execute(
                 """
@@ -149,7 +148,7 @@ class KalshiWeatherSniper:
                 forecast_error = str(e)
             candidate, reason = best_candidate(markets, forecast.high_f if forecast else None, threshold_f)
             station = STATIONS.get(city_slug)
-            inherited_risk = city_slug in KALSHI_HIGH_TEMP_SERIES and station is not None
+            inherited_risk = bool(spec.get("inherited_polymarket_risk_city")) and station is not None
             gate = "GREEN"
             warnings = []
             if forecast_error:

@@ -11,36 +11,5 @@ nws_boundary_veto_enabled: true
 nws_boundary_veto_degrees_f: 3.6
 dashboard_enabled: true
 kalshi_weather_dashboard_enabled: true
-# Matched Polymarket risk cities plus Kalshi-only discovered high-temp cities.
-# The runner owns this config in the standalone kalshi_weather_sniper project.
-series:
-  los-angeles:
-    series_ticker: KXHIGHLAX
-    city: Los Angeles
-    lat: 33.9416
-    lon: -118.4085
-    station: KLAX
-  atlanta:
-    series_ticker: KXHIGHTATL
-    city: Atlanta
-    lat: 33.6407
-    lon: -84.4277
-    station: KATL
-  houston:
-    series_ticker: KXHOUHIGH
-    city: Houston
-    lat: 29.6454
-    lon: -95.2789
-    station: KHOU
-  san-antonio:
-    series_ticker: KXHIGHTSATX
-    city: San Antonio
-    lat: 29.5337
-    lon: -98.4698
-    station: KSAT
-  oklahoma-city:
-    series_ticker: KXHIGHTOKC
-    city: Oklahoma City
-    lat: 35.3931
-    lon: -97.6007
-    station: KOKC
+# City universe is defined in polybot/live/kalshi_weather_universe.py so the
+# dashboard row can be reseeded without duplicating 20+ city specs in YAML.

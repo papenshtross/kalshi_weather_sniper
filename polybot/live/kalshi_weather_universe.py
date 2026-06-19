@@ -6,21 +6,35 @@ from typing import Any
 
 import httpx
 
-# Only Kalshi cities that also exist in the Polymarket weather safety table are
-# listed here; this keeps the copied yellow/red city universe intentionally
-# smaller, as requested.
+# Kalshi daily high-temperature city universe, normalized from Climate and
+# Weather / Daily temperature series. Duplicate/legacy series are collapsed to
+# the active KX* ticker where active markets were observed or strongly implied.
+# Cities that also exist in the Polymarket weather safety table are marked with
+# inherited_polymarket_risk_city=true and copy the Polymarket station mapping.
 KALSHI_HIGH_TEMP_SERIES: dict[str, dict[str, Any]] = {
-    "los-angeles": {"series_ticker": "KXHIGHLAX", "city": "Los Angeles", "lat": 33.9416, "lon": -118.4085, "station": "KLAX"},
-    "atlanta": {"series_ticker": "KXHIGHTATL", "city": "Atlanta", "lat": 33.6407, "lon": -84.4277, "station": "KATL"},
-    "houston": {"series_ticker": "KXHOUHIGH", "city": "Houston", "lat": 29.6454, "lon": -95.2789, "station": "KHOU"},
+    "atlanta": {"series_ticker": "KXHIGHTATL", "city": "Atlanta", "lat": 33.6407, "lon": -84.4277, "station": "KATL", "inherited_polymarket_risk_city": True},
+    "austin": {"series_ticker": "KXHIGHAUS", "city": "Austin", "lat": 30.1945, "lon": -97.6699, "station": "KAUS", "inherited_polymarket_risk_city": True},
+    "chicago": {"series_ticker": "KXHIGHCHI", "city": "Chicago", "lat": 41.9742, "lon": -87.9073, "station": "KORD", "inherited_polymarket_risk_city": True},
+    "dallas": {"series_ticker": "KXHIGHTDAL", "city": "Dallas", "lat": 32.8471, "lon": -96.8518, "station": "KDAL", "inherited_polymarket_risk_city": True},
+    "denver": {"series_ticker": "KXHIGHDEN", "city": "Denver", "lat": 39.8466, "lon": -104.6562, "station": "KBKF", "inherited_polymarket_risk_city": True},
+    "houston": {"series_ticker": "KXHIGHTHOU", "city": "Houston", "lat": 29.6454, "lon": -95.2789, "station": "KHOU", "inherited_polymarket_risk_city": True},
+    "los-angeles": {"series_ticker": "KXHIGHLAX", "city": "Los Angeles", "lat": 33.9416, "lon": -118.4085, "station": "KLAX", "inherited_polymarket_risk_city": True},
+    "miami": {"series_ticker": "KXHIGHMIA", "city": "Miami", "lat": 25.7959, "lon": -80.2870, "station": "KMIA", "inherited_polymarket_risk_city": True},
+    "nyc": {"series_ticker": "KXHIGHNY", "city": "NYC", "lat": 40.7769, "lon": -73.8740, "station": "KLGA", "inherited_polymarket_risk_city": True},
+    "san-francisco": {"series_ticker": "KXHIGHTSFO", "city": "San Francisco", "lat": 37.6213, "lon": -122.3790, "station": "KSFO", "inherited_polymarket_risk_city": True},
+    "seattle": {"series_ticker": "KXHIGHTSEA", "city": "Seattle", "lat": 47.4502, "lon": -122.3088, "station": "KSEA", "inherited_polymarket_risk_city": True},
 }
 
-# Extra Kalshi daily-high cities discovered from Kalshi series, but not present
-# in the Polymarket copied city risk list. They can be monitored/traded, but do
-# not inherit a Polymarket red/yellow city mapping.
 KALSHI_EXTRA_HIGH_TEMP_SERIES: dict[str, dict[str, Any]] = {
-    "san-antonio": {"series_ticker": "KXHIGHTSATX", "city": "San Antonio", "lat": 29.5337, "lon": -98.4698, "station": "KSAT"},
-    "oklahoma-city": {"series_ticker": "KXHIGHTOKC", "city": "Oklahoma City", "lat": 35.3931, "lon": -97.6007, "station": "KOKC"},
+    "boston": {"series_ticker": "KXHIGHTBOS", "city": "Boston", "lat": 42.3656, "lon": -71.0096, "station": "KBOS", "inherited_polymarket_risk_city": False},
+    "las-vegas": {"series_ticker": "KXHIGHTLV", "city": "Las Vegas", "lat": 36.0840, "lon": -115.1537, "station": "KLAS", "inherited_polymarket_risk_city": False},
+    "minneapolis": {"series_ticker": "KXHIGHTMIN", "city": "Minneapolis", "lat": 44.8848, "lon": -93.2223, "station": "KMSP", "inherited_polymarket_risk_city": False},
+    "new-orleans": {"series_ticker": "KXHIGHTNOLA", "city": "New Orleans", "lat": 29.9934, "lon": -90.2580, "station": "KMSY", "inherited_polymarket_risk_city": False},
+    "oklahoma-city": {"series_ticker": "KXHIGHTOKC", "city": "Oklahoma City", "lat": 35.3931, "lon": -97.6007, "station": "KOKC", "inherited_polymarket_risk_city": False},
+    "philadelphia": {"series_ticker": "KXHIGHPHIL", "city": "Philadelphia", "lat": 39.8744, "lon": -75.2424, "station": "KPHL", "inherited_polymarket_risk_city": False},
+    "phoenix": {"series_ticker": "KXHIGHTPHX", "city": "Phoenix", "lat": 33.4342, "lon": -112.0116, "station": "KPHX", "inherited_polymarket_risk_city": False},
+    "san-antonio": {"series_ticker": "KXHIGHTSATX", "city": "San Antonio", "lat": 29.5337, "lon": -98.4698, "station": "KSAT", "inherited_polymarket_risk_city": False},
+    "washington-dc": {"series_ticker": "KXHIGHTDC", "city": "Washington DC", "lat": 38.8512, "lon": -77.0402, "station": "KDCA", "inherited_polymarket_risk_city": False},
 }
 
 ALL_KALSHI_HIGH_TEMP_SERIES = {**KALSHI_HIGH_TEMP_SERIES, **KALSHI_EXTRA_HIGH_TEMP_SERIES}
