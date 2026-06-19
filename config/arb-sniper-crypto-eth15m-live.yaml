@@ -1,0 +1,60 @@
+id: crypto_arbitrage_v1_eth_15m
+name: "Crypto_Arbitrage_v1 · ETH 15m"
+mode: live
+kind: binary_arb_sniper
+arb_execution_mode: batch_fok
+market_slug: auto:crypto-updown:eth:15m
+crypto_asset: eth
+crypto_timeframe: 15m
+crypto_arb_shard: true
+crypto_dashboard_enabled: true
+order_limit_usd: 20.0
+second_leg_max_order_value_usd: 0.0
+max_executed_orders: 0
+min_edge: 0.003
+fee_per_share: 0.0
+polymarket_taker_fee_rate: 0.072
+merge_gas_per_share: 0.0
+stale_quote_buffer: 0.001
+max_rescue_slippage: 0.01
+profit_slippage_first_leg: true
+max_order_size: 15.0
+use_limit_fok: true
+allow_sub_min_order_notional: false
+tick_size: null
+neg_risk: null
+min_order_notional_usd: 1.0
+share_size_increment: 1.0
+rest_book_poll_ms: 150
+rest_book_poll_phase_ms: auto
+websocket_custom_features: true
+websocket_ping_interval: 10
+websocket_ping_timeout: 5
+disable_gc: true
+gc_collect_interval_seconds: 60
+log_hotpath_submit: false
+max_book_age_ms: 2500
+cooldown_ms: 0
+health_log_interval_seconds: 30
+arb_test_mode: false
+test_mode_min_notional_usd: 1.0
+first_leg_order_value_usd: 0.0
+# Crypto_Arbitrage_v1 wallet-derived fair-value gate (backtest-validated).
+fair_model_enabled: true
+fair_model_min_edge: 0.001
+fair_model_max_leg_overpay: 0.0
+fair_model_fallback_sigma: 0.80
+fair_model_vol_floor: 0.05
+fair_model_vol_cap: 5.0
+fair_model_sample_seconds: 1.0
+fair_model_ewma_lambda: 0.94
+fair_model_winsor_sigma: 6.0
+fair_model_latency_buffer_seconds: 0.25
+fair_model_max_ref_age_ms: 2500
+min_seconds_to_expiry_for_entry: 15
+
+# Stagger Gamma auto-discovery across crypto shards to avoid Cloudflare burst blocks.
+discovery_initial_stagger_ms: 30000
+gamma_initial_stagger_ms: 30000
+# Avoid repeated CLOB /auth/api-key warmup calls on shard restarts; initialise lazily on real order submission.
+warm_execution_client: false

@@ -1,0 +1,40 @@
+name: polybot-supervisor
+mode: paper
+
+# Each entry runs in parallel as an independent strategy with its own
+# strategy_id, dashboard row set, equity curve, and fills. They all trade the
+# 15m BTC Up/Down market (auto-rolling) but with different parameter sets, so
+# you can compare which configuration captures the most edge.
+strategies:
+  - id: arb_aggressive
+    name: "Arb · aggressive (thr 0.99)"
+    auto_roll: btc_updown_15m
+    threshold: 0.99
+    fee_per_share: 0.0
+    min_edge: 0.001
+    pair_size: 30
+    slow_offset: 0.005      # rest very close to top → fills more often
+    max_wait_seconds: 60
+    max_inventory: 600
+
+  - id: arb_balanced
+    name: "Arb · balanced (thr 0.97)"
+    auto_roll: btc_updown_15m
+    threshold: 0.97
+    fee_per_share: 0.0
+    min_edge: 0.003
+    pair_size: 25
+    slow_offset: 0.01
+    max_wait_seconds: 90
+    max_inventory: 500
+
+  - id: arb_conservative
+    name: "Arb · conservative (thr 0.95)"
+    auto_roll: btc_updown_15m
+    threshold: 0.95
+    fee_per_share: 0.0
+    min_edge: 0.005
+    pair_size: 20
+    slow_offset: 0.02       # only fills on real dislocations
+    max_wait_seconds: 120
+    max_inventory: 400

@@ -1,0 +1,10 @@
+name: paper-mm-live
+mode: paper
+n_markets: 5
+
+strategy:
+  class: polybot.strategies.paper_mm:PaperMM
+  params:
+    half_spread: 0.015
+    order_size: 50
+    max_inventory: 500

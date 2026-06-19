@@ -1,0 +1,19 @@
+name: btc-binary-arb-mm
+mode: paper
+
+# Polymarket "Bitcoin Up or Down" 24h binary
+event_slug: bitcoin-up-or-down-on-april-9-2026
+
+# --- Arb trigger (after fees) ---
+# Effective trigger = min(threshold, 1 - 2*fee_per_share - min_edge)
+# Polymarket CLOB is currently 0% trading fees; fee_per_share is reserved for
+# estimated slippage / gas on-chain settlement (Polygon gas ~$0, so ~0).
+threshold: 0.99          # soft user cap on sum(best_ask_YES, best_ask_NO)
+fee_per_share: 0.0       # USDC per share per leg (round-trip)
+min_edge: 0.002          # require at least 0.2¢ net profit per share pair
+
+# --- Sizing ---
+pair_size: 20            # shares per arb lift
+mm_spread: 0.02          # passive bid offset from top-of-book
+mm_size: 30              # passive bid size per side
+max_inventory: 500

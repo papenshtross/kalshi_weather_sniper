@@ -1,0 +1,16 @@
+name: BTC 5m Binance MTF Trend
+kind: binance_multiframe_trend_5m
+mode: paper
+market: btc_updown_5m
+signal_source: binance_btcusdt_1s
+trend_windows:
+  - 5
+  - 15
+  - 30
+  - 60
+entry_seconds_before_close: 5
+min_consensus: 4
+price_cap: 0.97
+max_order_size: 30
+max_position_size: 600
+max_executed_orders: 0

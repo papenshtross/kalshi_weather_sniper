@@ -1,0 +1,15 @@
+{
+  "description": "Example/staged target map for NWWS-OI weather-lock engine. Demo only: token ids are placeholders and max_notional_usdc=0 prevents sweep budget.",
+  "targets": [
+    {
+      "icao": "KLGA",
+      "city_slug": "nyc",
+      "market_slug": "new-york-high-temperature-demo",
+      "yes_token": "PLACEHOLDER_YES_TOKEN_ID",
+      "threshold_c": 28,
+      "direction": "gte",
+      "price_ceiling": 0.98,
+      "max_notional_usdc": 0
+    }
+  ]
+}

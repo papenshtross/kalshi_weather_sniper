@@ -1,0 +1,21 @@
+name: example-mm-backtest
+starting_cash: 10000
+
+data:
+  parquet_glob: data/parquet/trades_*.parquet
+
+instruments:
+  - symbol: trump-wins-2028-YES
+    condition_id: "0x..."       # fill in
+    token_id: "123..."           # fill in
+    tick_size: 0.01
+    min_order_size: 5
+
+strategy:
+  class: polybot.strategies.example_mm:ExampleMM
+  params:
+    instrument_id: "trump-wins-2028-YES.POLYMARKET"
+    half_spread_bps: 80
+    order_size: "10"
+    max_inventory: "100"
+    refresh_secs: 5

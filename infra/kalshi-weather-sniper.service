@@ -1,0 +1,15 @@
+[Unit]
+Description=Standalone Kalshi Weather Sniper
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/administrator/projects/kalshi_weather_sniper
+EnvironmentFile=/home/administrator/projects/polybot-dash/.env.local
+Environment=KALSHI_WEATHER_CONFIG=config/kalshi-weather-sniper-live.yaml
+ExecStart=/home/administrator/projects/kalshi_weather_sniper/.venv/bin/python -m polybot.live.kalshi_weather_sniper --config config/kalshi-weather-sniper-live.yaml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

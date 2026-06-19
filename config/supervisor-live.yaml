@@ -1,0 +1,112 @@
+name: polybot-live-supervisor
+mode: live
+strategies:
+- id: live_arb_balanced
+  name: "Live \xB7 Arb \xB7 balanced (thr 0.97)"
+  auto_roll: btc_updown_15m
+  threshold: 0.97
+  fee_per_share: 0.0
+  min_edge: 0.003
+  pair_size: 1.0
+  max_order_size: 1.0
+  max_position_size: 10.0
+  max_executed_orders: 5
+  slow_offset: 0.01
+  max_wait_seconds: 90.0
+  max_inventory: 500.0
+- id: live_arb_aggressive
+  name: "Live \xB7 Arb \xB7 aggressive (thr 0.99)"
+  auto_roll: btc_updown_15m
+  threshold: 0.99
+  fee_per_share: 0.0
+  min_edge: 0.001
+  pair_size: 30.0
+  slow_offset: 0.005
+  max_wait_seconds: 60.0
+  max_inventory: 600.0
+- id: live_arb_conservative
+  name: "Live \xB7 Arb \xB7 conservative (thr 0.95)"
+  auto_roll: btc_updown_15m
+  threshold: 0.95
+  fee_per_share: 0.0
+  min_edge: 0.005
+  pair_size: 20.0
+  slow_offset: 0.02
+  max_wait_seconds: 120.0
+  max_inventory: 400.0
+- id: live_momentum_consensus_07_dynamic
+  name: "Live \xB7 BTC 5m Momentum Consensus 07 Dynamic"
+  kind: momentum_consensus_dynamic_entry_5m
+  max_order_size: 1.0
+  max_position_size: 1.0
+  max_executed_orders: 0
+  min_consensus: 5
+  signal_source: binance
+  entry_slippage_ticks: 0
+  hedge_buffer_ticks: 0
+  hedge_consensus_trigger: 0
+  hedge_max_attempts_per_market: 0
+  entry_retry_on_fok_kill: true
+  entry_max_attempts_per_market: 3
+  entry_retry_cooldown_seconds: 0.75
+- id: live_momentum_consensus_07_dynamic_v2
+  name: "BTC 5m Momentum Consensus 07 Dynamic V2 Chainlink"
+  kind: momentum_consensus_dynamic_entry_5m
+  max_order_size: 1.0
+  max_position_size: 1.0
+  max_executed_orders: 0
+  min_consensus: 5
+  signal_source: chainlink
+  entry_slippage_ticks: 0
+  hedge_buffer_ticks: 0
+  hedge_consensus_trigger: 0
+  hedge_max_attempts_per_market: 0
+  entry_retry_on_fok_kill: true
+  entry_max_attempts_per_market: 3
+  entry_retry_cooldown_seconds: 0.75
+- id: live_momentum_consensus_07_dynamic_binance_5of5_hedge_1c
+  name: "Binance 5/5 first-consensus with hedge buffers 1c"
+  kind: momentum_consensus_dynamic_entry_5m
+  max_order_size: 1.0
+  max_position_size: 1.0
+  max_executed_orders: 0
+  min_consensus: 5
+  signal_source: binance
+  entry_slippage_ticks: 0
+  hedge_buffer_ticks: 1
+  hedge_consensus_trigger: 2
+  hedge_max_attempts_per_market: 3
+  entry_retry_on_fok_kill: true
+  entry_max_attempts_per_market: 3
+  entry_retry_cooldown_seconds: 0.75
+- id: live_momentum_consensus_07_dynamic_chainlink_5of5_hedge_10c
+  name: "Chainlink 5/5 first-consensus with hedge buffers 10c"
+  kind: momentum_consensus_dynamic_entry_5m
+  max_order_size: 1.0
+  max_position_size: 1.0
+  max_executed_orders: 0
+  min_consensus: 5
+  signal_source: chainlink
+  entry_slippage_ticks: 0
+  hedge_buffer_ticks: 10
+  hedge_consensus_trigger: 1
+  hedge_max_attempts_per_market: 3
+  entry_retry_on_fok_kill: true
+  entry_max_attempts_per_market: 3
+  entry_retry_cooldown_seconds: 0.75
+- id: live_lightgbm_btc5m_v1
+  name: "BTC 5m LightGBM module signal v1"
+  kind: momentum_consensus_dynamic_entry_5m
+  max_order_size: 1.0
+  max_position_size: 1.0
+  max_executed_orders: 0
+  signal_source: lightgbm
+  lightgbm_predict_url: http://127.0.0.1:8787/predict
+  lightgbm_timeout_seconds: 1.5
+  entry_slippage_ticks: 0
+  hedge_buffer_ticks: 0
+  hedge_consensus_trigger: 0
+  hedge_max_attempts_per_market: 0
+  entry_retry_on_fok_kill: true
+  entry_max_attempts_per_market: 3
+  entry_retry_cooldown_seconds: 0.75
