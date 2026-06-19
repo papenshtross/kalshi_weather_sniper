@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 from datetime import date, datetime, timezone
@@ -85,13 +86,20 @@ def filter_markets_for_date(markets: list[KalshiMarket], target: date | None = N
     return [m for m in markets if f"-{code}-" in m.ticker.upper()]
 
 
+def market_no_ask(m: KalshiMarket) -> float | None:
+    if m.no_ask is not None:
+        return m.no_ask
+    if m.yes_bid is not None:
+        return max(0.0, min(1.0, 1.0 - float(m.yes_bid)))
+    return None
+
+
 def best_candidate(markets: list[KalshiMarket], forecast_high_f: float | None, threshold_f: float) -> tuple[KalshiMarket | None, str]:
-    # Pick an outlier bracket away from NWS high and with a known ask. This is a
-    # scanner/plan path; order placement remains dry-run unless enabled.
+    # Pick an outlier bracket away from NWS high and with available NO liquidity.
     viable: list[tuple[float, KalshiMarket]] = []
     for m in markets:
         temp = m.temp_mid_f
-        ask = m.yes_ask
+        ask = market_no_ask(m)
         if temp is None or ask is None:
             continue
         veto = boundary_veto_reason(temp, forecast_high_f, threshold_f)
@@ -100,9 +108,20 @@ def best_candidate(markets: list[KalshiMarket], forecast_high_f: float | None, t
         distance = abs(temp - forecast_high_f) if forecast_high_f is not None else 0.0
         viable.append((distance, m))
     if not viable:
-        return None, "no candidate passed NWS boundary veto and quote checks"
-    viable.sort(key=lambda x: (x[0], -(x[1].yes_ask or 0)), reverse=True)
-    return viable[0][1], "selected farthest quoted bracket from NWS high"
+        return None, "no candidate passed NWS boundary veto and NO quote checks"
+    viable.sort(key=lambda x: (x[0], -(market_no_ask(x[1]) or 0)), reverse=True)
+    return viable[0][1], "selected farthest quoted NO bracket from NWS high"
+
+
+def kalshi_contract_count(order_size_usd: float, price: float | None) -> int:
+    if price is None or price <= 0:
+        return 0
+    return max(0, int(float(order_size_usd) / float(price)))
+
+
+def client_order_id(strategy_id: str, ticker: str, side: str) -> str:
+    digest = hashlib.sha256(f"{strategy_id}:{ticker}:{side}".encode()).hexdigest()[:24]
+    return f"kwx-{digest}"
 
 
 class KalshiWeatherSniper:
@@ -157,12 +176,66 @@ class KalshiWeatherSniper:
         raw = await self.client.list_markets(series_ticker=spec["series_ticker"], status="open", limit=200, limit_pages=3)
         return filter_markets_for_date([parse_market(m) for m in raw if parse_market(m).ticker])
 
+    async def execute_candidate(self, candidate: KalshiMarket, row: dict[str, Any], cfg: dict[str, Any], order_size: float) -> dict[str, Any]:
+        no_ask = market_no_ask(candidate)
+        count = kalshi_contract_count(order_size, no_ask)
+        token = f"{candidate.ticker}:NO"
+        signal = {**row, "side": "NO", "no_ask": no_ask, "count": count}
+        if no_ask is None or count <= 0:
+            await self.writer.record_order_attempt(self.strategy_id, candidate.ticker, token, "NO", "BUY", "IOC_LIMIT", no_ask, count, 0, "rejected", error="no executable NO ask", signal=signal, config=cfg)
+            return {"ok": False, "error": "no executable NO ask"}
+        async with self.writer._pool.acquire() as con:  # type: ignore[attr-defined]
+            prior = float(await con.fetchval(
+                """SELECT COALESCE(SUM(stake_usd), 0)
+                   FROM order_attempts
+                   WHERE strategy_id=$1 AND market_slug=$2 AND side='BUY' AND token=$3
+                     AND status IN ('filled','submitted')""",
+                self.strategy_id, candidate.ticker, token,
+            ) or 0.0)
+        max_stake = min(1.0, order_size)
+        if prior >= max_stake:
+            return {"ok": False, "skipped": True, "reason": "already bought configured stake for ticker", "prior_stake_usd": prior}
+        yes_ask_price = max(0.01, min(0.99, 1.0 - float(no_ask)))
+        stake = count * no_ask
+        oid = client_order_id(self.strategy_id, candidate.ticker, "NO")
+        if _safe_bool(cfg.get("dry_run"), True):
+            response = {"success": True, "dry_run": True, "client_order_id": oid, "ticker": candidate.ticker, "side": "ask", "economic_side": "buy_no", "count": f"{count:.2f}", "price": f"{yes_ask_price:.4f}", "no_ask": no_ask}
+            await self.writer.record_order_attempt(self.strategy_id, candidate.ticker, token, "NO", "BUY", "DRY_RUN_IOC_LIMIT", no_ask, count, stake, "dry_run", response=response, signal=signal, config=cfg)
+            return response
+        try:
+            response = await self.client.create_order(
+                ticker=candidate.ticker,
+                side="ask",
+                count=count,
+                price=yes_ask_price,
+                time_in_force="immediate_or_cancel",
+                client_order_id=oid,
+            )
+            status = "submitted"
+            await self.writer.record_order_attempt(self.strategy_id, candidate.ticker, token, "NO", "BUY", "IOC_LIMIT", no_ask, count, stake, status, response=response, signal=signal, config=cfg)
+            await self.writer.log_strategy_event(self.strategy_id, f"Kalshi LIVE BUY NO submitted ticker={candidate.ticker} count={count} yes_ask_price={yes_ask_price:.4f} no_ask={no_ask:.4f} stake=${stake:.2f}")
+            return {"ok": True, "response": response, "count": count, "price": yes_ask_price, "no_ask": no_ask, "stake_usd": stake}
+        except Exception as e:
+            await self.writer.record_order_attempt(self.strategy_id, candidate.ticker, token, "NO", "BUY", "IOC_LIMIT", no_ask, count, stake, "error", error=str(e), signal=signal, config=cfg)
+            await self.writer.log_strategy_event(self.strategy_id, f"Kalshi LIVE BUY NO error ticker={candidate.ticker}: {e}", level="ERROR")
+            return {"ok": False, "error": str(e), "count": count, "price": yes_ask_price, "no_ask": no_ask, "stake_usd": stake}
+
     async def scan_once(self, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         cfg = dict(cfg or self.cfg)
         order_size = min(1.0, _safe_float(cfg.get("outlier_order_usd", cfg.get("order_size_usd")), 1.0))
         default_threshold_f = _safe_float(cfg.get("nws_boundary_veto_degrees_f"), 3.6)
         rows: list[dict[str, Any]] = []
         plans: list[dict[str, Any]] = []
+        live_balance_usd = None
+        remaining_live_budget = 0.0
+        if not _safe_bool(cfg.get("dry_run"), True):
+            try:
+                balance = await self.client.balance()
+                live_balance_usd = _safe_float(balance.get("balance_dollars", balance.get("balance", 0)), 0.0)
+            except Exception as e:
+                await self.writer.log_strategy_event(self.strategy_id, f"Kalshi live balance check failed: {e}", level="ERROR")
+                live_balance_usd = 0.0
+            remaining_live_budget = max(0.0, min(_safe_float(cfg.get("daily_order_limit_usd"), 4.0), live_balance_usd - 0.25))
         for city_slug, spec in (cfg.get("series") or {}).items():
             markets = await self.discover_city_markets(city_slug, spec)
             threshold_f = _safe_float(spec.get("nws_boundary_veto_degrees_f"), default_threshold_f)
@@ -203,7 +276,7 @@ class KalshiWeatherSniper:
                         "boundary_veto_threshold_c": spec.get("polymarket_boundary_veto_degrees_c"),
                         "market_count": len(markets),
                         "candidate": candidate.ticker if candidate else None,
-                        "candidate_yes_ask": candidate.yes_ask if candidate else None,
+                        "candidate_no_ask": market_no_ask(candidate) if candidate else None,
                         "inherited_polymarket_risk_city": inherited_risk,
                     },
                     "reasons": [reason] if reason else [],
@@ -225,24 +298,34 @@ class KalshiWeatherSniper:
                 "warnings": warnings,
                 "candidate": candidate.ticker if candidate else None,
                 "candidate_title": candidate.title if candidate else None,
-                "candidate_yes_ask": candidate.yes_ask if candidate else None,
+                "candidate_no_ask": market_no_ask(candidate) if candidate else None,
                 "reason": reason,
             }
             rows.append(row)
             if candidate:
-                plans.append({**row, "order_size_usd": order_size, "dry_run": _safe_bool(cfg.get("dry_run"), True)})
+                if _safe_bool(cfg.get("dry_run"), True):
+                    execution = await self.execute_candidate(candidate, row, cfg, order_size)
+                elif remaining_live_budget >= min(1.0, order_size):
+                    execution = await self.execute_candidate(candidate, row, cfg, min(order_size, remaining_live_budget))
+                    if execution.get("ok") is True:
+                        remaining_live_budget = max(0.0, remaining_live_budget - float(execution.get("stake_usd") or 0.0))
+                else:
+                    execution = {"ok": False, "skipped": True, "reason": "live balance/budget guard", "live_balance_usd": live_balance_usd, "remaining_live_budget": remaining_live_budget}
+                plans.append({**row, "order_size_usd": order_size, "dry_run": _safe_bool(cfg.get("dry_run"), True), "execution": execution})
+                no_ask = market_no_ask(candidate)
                 await self.writer.upsert_book(
                     self.strategy_id,
                     candidate.ticker,
                     f"{spec.get('city')} · {candidate.title}",
                     [],
-                    [{"price": candidate.yes_ask or 0, "size": order_size}],
-                    candidate.yes_bid or 0,
-                    candidate.yes_ask or 0,
+                    [{"price": no_ask or 0, "size": order_size}],
+                    candidate.no_bid or 0,
+                    no_ask or 0,
                 )
         await self.writer.snapshot_equity(self.strategy_id, STARTING_CASH)
         await self.writer.upsert_position(self.strategy_id, "Kalshi weather scan", "SCANNING", 0, 0, 0, 0)
-        await self.writer.log_strategy_event(self.strategy_id, f"Kalshi weather scan: {len(rows)} cities, {len(plans)} dry-run candidate(s)")
+        mode_label = "dry-run" if _safe_bool(cfg.get("dry_run"), True) else "LIVE"
+        await self.writer.log_strategy_event(self.strategy_id, f"Kalshi weather scan ({mode_label}): {len(rows)} cities, {len(plans)} candidate(s)")
         return {"checked_at": datetime.now(timezone.utc).isoformat(), "strategy_id": self.strategy_id, "order_size_usd": order_size, "plans": plans, "cities": rows}
 
     async def run_forever(self) -> None:

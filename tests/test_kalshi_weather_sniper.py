@@ -1,7 +1,7 @@
 from datetime import date
 
 from polybot.adapters.kalshi.client import dollars_to_probability, parse_market
-from polybot.live.kalshi_weather_sniper import best_candidate, filter_markets_for_date, kalshi_date_code, load_config
+from polybot.live.kalshi_weather_sniper import best_candidate, filter_markets_for_date, kalshi_contract_count, kalshi_date_code, load_config, market_no_ask
 from polybot.live.kalshi_weather_universe import ALL_KALSHI_HIGH_TEMP_SERIES, KALSHI_HIGH_TEMP_SERIES, boundary_veto_reason
 
 
@@ -33,12 +33,20 @@ def test_nws_boundary_veto_rejects_near_forecast_boundary():
     assert boundary_veto_reason(80.0, 73.0, 3.6) is None
 
 
-def test_best_candidate_picks_far_quoted_non_vetoed_market():
-    near = parse_market({"ticker": "near", "title": "near", "floor_strike": 72, "cap_strike": 73, "yes_ask_dollars": "0.10"})
-    far = parse_market({"ticker": "far", "title": "far", "floor_strike": 82, "cap_strike": 83, "yes_ask_dollars": "0.11"})
+def test_best_candidate_picks_far_quoted_no_market():
+    near = parse_market({"ticker": "near", "title": "near", "floor_strike": 72, "cap_strike": 73, "yes_bid_dollars": "0.90", "no_ask_dollars": "0.10"})
+    far = parse_market({"ticker": "far", "title": "far", "floor_strike": 82, "cap_strike": 83, "yes_bid_dollars": "0.89", "no_ask_dollars": "0.11"})
     chosen, reason = best_candidate([near, far], forecast_high_f=73.0, threshold_f=3.6)
+    assert chosen is not None
     assert chosen is far
-    assert "selected" in reason
+    assert market_no_ask(chosen) == 0.11
+    assert "NO" in reason
+
+
+def test_kalshi_contract_count_keeps_one_dollar_cap():
+    assert kalshi_contract_count(1.0, 0.04) == 25
+    assert kalshi_contract_count(1.0, 0.99) == 1
+    assert kalshi_contract_count(1.0, None) == 0
 
 
 def test_date_filter_keeps_only_target_daily_markets():

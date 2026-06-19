@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import json
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
@@ -64,10 +66,29 @@ class KalshiHttpClient:
         await self._http.aclose()
 
     async def get_json(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        url = f"{self.base_url}/{path.lstrip('/')}"
+        path = path if path.startswith("/") else f"/{path}"
+        url = f"{self.base_url}{path}"
         r = await self._http.get(url, params=params or {})
         r.raise_for_status()
         return r.json()
+
+    async def signed_request(self, method: str, path: str, *, params: dict[str, Any] | None = None, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        path = path if path.startswith("/") else f"/{path}"
+        query = f"?{urlencode({k: v for k, v in (params or {}).items() if v is not None})}" if params else ""
+        path_with_query = f"{path}{query}"
+        signing_prefix = urlparse(self.base_url).path.rstrip("/")
+        signed_path_with_query = f"{signing_prefix}{path_with_query}"
+        body_bytes = json.dumps(body or {}, separators=(",", ":")).encode("utf-8") if body is not None else b""
+        headers = auth_headers(method, signed_path_with_query, body_bytes)
+        url = f"{self.base_url}{path_with_query}"
+        r = await self._http.request(method.upper(), url, content=body_bytes if body is not None else None, headers=headers)
+        try:
+            data = r.json()
+        except Exception:
+            data = {"raw": r.text}
+        if r.status_code >= 400:
+            raise httpx.HTTPStatusError(f"Kalshi {method.upper()} {path} failed: {r.status_code} {data}", request=r.request, response=r)
+        return data
 
     async def list_markets(self, **params: Any) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -86,6 +107,38 @@ class KalshiHttpClient:
 
     async def orderbook(self, ticker: str) -> dict[str, Any]:
         return await self.get_json(f"markets/{ticker}/orderbook")
+
+    async def balance(self) -> dict[str, Any]:
+        return await self.signed_request("GET", "/portfolio/balance")
+
+    async def create_order(
+        self,
+        *,
+        ticker: str,
+        side: str,
+        count: int | float,
+        price: float,
+        time_in_force: str = "immediate_or_cancel",
+        client_order_id: str | None = None,
+        post_only: bool = False,
+        reduce_only: bool = False,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "ticker": ticker,
+            "side": side.lower(),
+            "count": f"{float(count):.2f}",
+            "price": f"{float(price):.4f}",
+            "time_in_force": time_in_force,
+            "self_trade_prevention_type": "taker_at_cross",
+            "post_only": bool(post_only),
+            "cancel_order_on_pause": False,
+            "reduce_only": bool(reduce_only),
+            "subaccount": 0,
+            "exchange_index": 0,
+        }
+        if client_order_id:
+            body["client_order_id"] = client_order_id
+        return await self.signed_request("POST", "/portfolio/events/orders", body=body)
 
 
 def parse_market(raw: dict[str, Any]) -> KalshiMarket:
@@ -115,16 +168,15 @@ def _float_or_none(value: Any) -> float | None:
 
 
 def auth_headers(method: str, path_with_query: str, body: bytes = b"") -> dict[str, str]:
-    """Build Kalshi RSA-PSS auth headers from the local encrypted registry.
-
-    This is intentionally small and isolated; the runner defaults to dry-run and
-    does not submit orders unless explicitly enabled.
-    """
+    """Build Kalshi RSA-PSS auth headers from the local encrypted registry."""
     creds = load_kalshi_credentials()
     if creds is None:
         raise RuntimeError("Kalshi credentials not found in local registry")
     timestamp_ms = str(int(time.time() * 1000))
-    msg = f"{timestamp_ms}{method.upper()}{path_with_query}".encode() + body
+    # Kalshi V2 signs timestamp + method + path, with query string excluded.
+    parsed = urlparse(path_with_query)
+    path_only = parsed.path or path_with_query.split("?", 1)[0]
+    msg = f"{timestamp_ms}{method.upper()}{path_only}".encode()
     key = serialization.load_pem_private_key(creds.private_key_pem.encode(), password=None)
     if not isinstance(key, rsa.RSAPrivateKey):
         raise TypeError("Kalshi private key is not RSA")

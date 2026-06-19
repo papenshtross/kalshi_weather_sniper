@@ -7,6 +7,7 @@ Type=simple
 WorkingDirectory=/home/administrator/projects/kalshi_weather_sniper
 EnvironmentFile=/home/administrator/projects/polybot-dash/.env.local
 Environment=KALSHI_WEATHER_CONFIG=config/kalshi-weather-sniper-live.yaml
+Environment=POLYBOT_WALLET_REGISTRY=/home/administrator/projects/polybot/config/wallets/wallets.sops.yaml
 ExecStart=/home/administrator/projects/kalshi_weather_sniper/.venv/bin/python -m polybot.live.kalshi_weather_sniper --config config/kalshi-weather-sniper-live.yaml
 Restart=always
 RestartSec=10

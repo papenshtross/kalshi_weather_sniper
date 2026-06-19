@@ -10,7 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY = ROOT / "config" / "wallets" / "wallets.sops.yaml"
 DEFAULT_DPAPI_BLOB_WIN = r"C:\Users\Administrator\AppData\Local\Polybot\age-identity.dpapi"
-RETRIEVE_PS1 = ROOT / "scripts" / "secrets" / "dpapi_age_identity_retrieve.ps1"
+RETRIEVE_PS1 = Path(os.getenv("POLYBOT_DPAPI_AGE_RETRIEVE_PS1", str(ROOT / "scripts" / "secrets" / "dpapi_age_identity_retrieve.ps1")))
+FALLBACK_RETRIEVE_PS1 = Path("/home/administrator/projects/polybot/scripts/secrets/dpapi_age_identity_retrieve.ps1")
 POWERSHELL = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 SOPS = os.getenv("SOPS_BIN", "/home/administrator/.local/bin/sops")
 
@@ -43,7 +44,8 @@ def _wslpath_win(path: Path) -> str:
 def dpapi_age_identity(blob_win: str | None = None) -> str:
     """Return the DPAPI-protected age identity, without writing it to disk."""
     blob = blob_win or os.getenv("POLYBOT_SOPS_AGE_DPAPI_BLOB") or DEFAULT_DPAPI_BLOB_WIN
-    if not RETRIEVE_PS1.exists():
+    retrieve_ps1 = RETRIEVE_PS1 if RETRIEVE_PS1.exists() else FALLBACK_RETRIEVE_PS1
+    if not retrieve_ps1.exists():
         raise WalletSecretError(f"DPAPI retrieve script missing: {RETRIEVE_PS1}")
     try:
         out = subprocess.check_output(
@@ -53,7 +55,7 @@ def dpapi_age_identity(blob_win: str | None = None) -> str:
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                _wslpath_win(RETRIEVE_PS1),
+                _wslpath_win(retrieve_ps1),
                 "-InFile",
                 blob,
             ],

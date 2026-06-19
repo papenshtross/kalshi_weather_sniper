@@ -5,7 +5,7 @@ kind: kalshi_weather_sniper
 status: stopped
 market_slug: auto:kalshi-weather-high-temp
 order_size_usd: 1.0
-dry_run: true
+dry_run: false
 poll_seconds: 300
 nws_boundary_veto_enabled: true
 nws_boundary_veto_degrees_f: 3.6
