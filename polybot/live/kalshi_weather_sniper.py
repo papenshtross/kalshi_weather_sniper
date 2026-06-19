@@ -147,7 +147,10 @@ class KalshiWeatherSniper:
         if not row:
             return dict(self.cfg), str(self.cfg.get("status", "stopped"))
         cfg = load_config(self.config_path)
-        cfg.update(dict(row["config"] or {}))
+        db_config = row["config"] or {}
+        if isinstance(db_config, str):
+            db_config = json.loads(db_config)
+        cfg.update(dict(db_config or {}))
         return cfg, str(row["status"] or "stopped")
 
     async def discover_city_markets(self, city_slug: str, spec: dict[str, Any]) -> list[KalshiMarket]:
