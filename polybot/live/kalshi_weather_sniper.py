@@ -157,11 +157,12 @@ class KalshiWeatherSniper:
     async def scan_once(self, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         cfg = dict(cfg or self.cfg)
         order_size = min(1.0, _safe_float(cfg.get("outlier_order_usd", cfg.get("order_size_usd")), 1.0))
-        threshold_f = _safe_float(cfg.get("nws_boundary_veto_degrees_f"), 3.6)
+        default_threshold_f = _safe_float(cfg.get("nws_boundary_veto_degrees_f"), 3.6)
         rows: list[dict[str, Any]] = []
         plans: list[dict[str, Any]] = []
         for city_slug, spec in (cfg.get("series") or {}).items():
             markets = await self.discover_city_markets(city_slug, spec)
+            threshold_f = _safe_float(spec.get("nws_boundary_veto_degrees_f"), default_threshold_f)
             forecast = None
             forecast_error = None
             try:
@@ -195,6 +196,8 @@ class KalshiWeatherSniper:
                     "metrics": {
                         "filter_model": "kalshi_weather_nws_forecast_v1",
                         "forecast_high_f": forecast.high_f if forecast else None,
+                        "boundary_veto_threshold_f": threshold_f,
+                        "boundary_veto_threshold_c": spec.get("polymarket_boundary_veto_degrees_c"),
                         "market_count": len(markets),
                         "candidate": candidate.ticker if candidate else None,
                         "candidate_yes_ask": candidate.yes_ask if candidate else None,
@@ -212,6 +215,8 @@ class KalshiWeatherSniper:
                 "series_ticker": spec.get("series_ticker"),
                 "market_count": len(markets),
                 "nws_high_f": forecast.high_f if forecast else None,
+                "nws_boundary_veto_degrees_f": threshold_f,
+                "polymarket_boundary_veto_degrees_c": spec.get("polymarket_boundary_veto_degrees_c"),
                 "gate": gate,
                 "inherited_polymarket_risk_city": inherited_risk,
                 "warnings": warnings,

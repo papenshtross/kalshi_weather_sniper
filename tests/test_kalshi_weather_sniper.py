@@ -59,6 +59,10 @@ def test_load_config_exposes_weather_outlier_dashboard_aliases(tmp_path):
     assert cfg["weather_outlier_rebuy_tiers"] == "1:1,2:2,3:3"
     assert cfg["weather_safety_filter_report_enabled"] is True
     assert len(cfg["series"]) == 20
+    assert cfg["series"]["san-francisco"]["polymarket_boundary_veto_degrees_c"] == 3.5
+    assert cfg["series"]["san-francisco"]["nws_boundary_veto_degrees_f"] == 6.3
+    assert cfg["series"]["atlanta"]["polymarket_boundary_veto_degrees_c"] == 2.0
+    assert cfg["series"]["phoenix"].get("polymarket_boundary_veto_degrees_c") is None
 
 
 def test_copied_polymarket_risk_city_list_is_smaller_than_full_kalshi_config():
