@@ -1,7 +1,7 @@
 from datetime import date
 
 from polybot.adapters.kalshi.client import dollars_to_probability, parse_market
-from polybot.live.kalshi_weather_sniper import best_candidate, filter_markets_for_date, kalshi_date_code
+from polybot.live.kalshi_weather_sniper import best_candidate, filter_markets_for_date, kalshi_date_code, load_config
 from polybot.live.kalshi_weather_universe import ALL_KALSHI_HIGH_TEMP_SERIES, KALSHI_HIGH_TEMP_SERIES, boundary_veto_reason
 
 
@@ -46,6 +46,19 @@ def test_date_filter_keeps_only_target_daily_markets():
     old = parse_market({"ticker": "KXHIGHLAX-26JUN18-T73", "title": "old", "floor_strike": 73, "yes_ask_dollars": "0.01"})
     cur = parse_market({"ticker": "KXHIGHLAX-26JUN19-T73", "title": "cur", "floor_strike": 73, "yes_ask_dollars": "0.01"})
     assert filter_markets_for_date([old, cur], date(2026, 6, 19)) == [cur]
+
+
+def test_load_config_exposes_weather_outlier_dashboard_aliases(tmp_path):
+    cfg_path = tmp_path / "kalshi.yaml"
+    cfg_path.write_text("id: live_kalshi_weather_sniper_v1\norder_size_usd: 1.0\n")
+    cfg = load_config(cfg_path)
+    assert cfg["kind"] == "kalshi_weather_sniper"
+    assert cfg["outlier_order_usd"] == 1.0
+    assert cfg["order_limit_usd"] == 1.0
+    assert cfg["outlier_temperature_offset_degrees"] == 4
+    assert cfg["weather_outlier_rebuy_tiers"] == "1:1,2:2,3:3"
+    assert cfg["weather_safety_filter_report_enabled"] is True
+    assert len(cfg["series"]) == 20
 
 
 def test_copied_polymarket_risk_city_list_is_smaller_than_full_kalshi_config():

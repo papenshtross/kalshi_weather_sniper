@@ -51,6 +51,19 @@ def load_config(path: Path) -> dict[str, Any]:
     data.setdefault("mode", "live")
     data.setdefault("status", "stopped")
     data.setdefault("order_size_usd", 1.0)
+    data.setdefault("outlier_order_usd", data.get("order_size_usd", 1.0))
+    data.setdefault("order_limit_usd", data.get("order_size_usd", 1.0))
+    data.setdefault("outlier_temperature_offset_degrees", 4)
+    data.setdefault("min_edge", 0.01)
+    data.setdefault("outlier_take_profit_price", 0.999)
+    data.setdefault("weather_outlier_rebuy_tiers_enabled", False)
+    data.setdefault("weather_outlier_rebuy_tiers", "1:1,2:2,3:3")
+    data.setdefault("weather_outlier_blacklist", [])
+    data.setdefault("weather_safety_filter_report_enabled", True)
+    data.setdefault("weather_safety_filter_enabled", False)
+    data.setdefault("weather_safety_filter_yellow_size_multiplier", 0.2)
+    data.setdefault("weather_safety_filter_refresh_seconds", 900)
+    data.setdefault("max_orders_per_market", 1)
     data.setdefault("dry_run", True)
     data.setdefault("nws_boundary_veto_enabled", True)
     data.setdefault("nws_boundary_veto_degrees_f", 3.6)
@@ -128,13 +141,22 @@ class KalshiWeatherSniper:
                 str(cfg.get("mode") or "live"),
             )
 
+    async def current_state(self) -> tuple[dict[str, Any], str]:
+        async with self.writer._pool.acquire() as con:  # type: ignore[attr-defined]
+            row = await con.fetchrow("SELECT config, status FROM strategies WHERE id=$1", self.strategy_id)
+        if not row:
+            return dict(self.cfg), str(self.cfg.get("status", "stopped"))
+        cfg = load_config(self.config_path)
+        cfg.update(dict(row["config"] or {}))
+        return cfg, str(row["status"] or "stopped")
+
     async def discover_city_markets(self, city_slug: str, spec: dict[str, Any]) -> list[KalshiMarket]:
         raw = await self.client.list_markets(series_ticker=spec["series_ticker"], status="open", limit=200, limit_pages=3)
         return filter_markets_for_date([parse_market(m) for m in raw if parse_market(m).ticker])
 
-    async def scan_once(self) -> dict[str, Any]:
-        cfg = dict(self.cfg)
-        order_size = min(1.0, _safe_float(cfg.get("order_size_usd"), 1.0))
+    async def scan_once(self, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+        cfg = dict(cfg or self.cfg)
+        order_size = min(1.0, _safe_float(cfg.get("outlier_order_usd", cfg.get("order_size_usd")), 1.0))
         threshold_f = _safe_float(cfg.get("nws_boundary_veto_degrees_f"), 3.6)
         rows: list[dict[str, Any]] = []
         plans: list[dict[str, Any]] = []
@@ -156,6 +178,34 @@ class KalshiWeatherSniper:
                 warnings.append(f"NWS forecast unavailable: {forecast_error}")
             if not inherited_risk:
                 warnings.append("No matching Polymarket city risk mapping; Kalshi-only city")
+            await self.writer.upsert_weather_safety_filter(
+                f"{self.strategy_id}_{city_slug}",
+                {
+                    "city_slug": city_slug,
+                    "city": spec.get("city", city_slug),
+                    "station": spec.get("station", ""),
+                    "source": "NWS forecast + Kalshi high-temp series",
+                    "gate": gate,
+                    "reason": forecast_error or "GREEN: NWS forecast available; Kalshi daily high-temp market scanned",
+                    "expected_temp_fluctuation_c": None,
+                    "weather_codes": [],
+                    "weather_code_names": [],
+                    "size_multiplier": 1.0,
+                    "event_slug": spec.get("series_ticker", ""),
+                    "metrics": {
+                        "filter_model": "kalshi_weather_nws_forecast_v1",
+                        "forecast_high_f": forecast.high_f if forecast else None,
+                        "market_count": len(markets),
+                        "candidate": candidate.ticker if candidate else None,
+                        "candidate_yes_ask": candidate.yes_ask if candidate else None,
+                        "inherited_polymarket_risk_city": inherited_risk,
+                    },
+                    "reasons": [reason] if reason else [],
+                    "warnings": warnings,
+                    "checked_at": datetime.now(timezone.utc).isoformat(),
+                },
+                enabled=_safe_bool(cfg.get("weather_safety_filter_enabled"), False),
+            )
             row = {
                 "city_slug": city_slug,
                 "city": spec.get("city", city_slug),
@@ -191,13 +241,11 @@ class KalshiWeatherSniper:
         await self.connect()
         try:
             while True:
-                async with self.writer._pool.acquire() as con:  # type: ignore[attr-defined]
-                    row = await con.fetchrow("SELECT status, config FROM strategies WHERE id=$1", self.strategy_id)
-                status = str(row["status"] if row else self.cfg.get("status", "stopped"))
+                cfg, status = await self.current_state()
                 if status == "running":
-                    result = await self.scan_once()
+                    result = await self.scan_once(cfg)
                     logger.info("scan complete: {} plans", len(result["plans"]))
-                await asyncio.sleep(_safe_float(self.cfg.get("poll_seconds"), 300))
+                await asyncio.sleep(_safe_float(cfg.get("poll_seconds"), 300))
         finally:
             await self.close()
 
@@ -213,7 +261,8 @@ async def _amain() -> None:
     if args.once:
         await bot.connect()
         try:
-            print(json.dumps(await bot.scan_once(), indent=2, default=str))
+            cfg, _status = await bot.current_state()
+            print(json.dumps(await bot.scan_once(cfg), indent=2, default=str))
         finally:
             await bot.close()
     else:
